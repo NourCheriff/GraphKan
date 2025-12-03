@@ -378,7 +378,7 @@ class kanGCNNet(torch.nn.Module):
         self.ln1 = nn.LayerNorm(512)
         self.ln2 = nn.LayerNorm(256)
         self.ln3 = nn.LayerNorm(128)
-        self.fc = KANLinear(128, 6)
+        self.fc = KANLinear(128, 7)
 
     def forward(self,graph):
         x, edge_index, edge_weight = graph.x, graph.edge_index, graph.edge_attr  # the Forward path of model
@@ -395,7 +395,7 @@ class GCNNet768(torch.nn.Module):
         self.conv1 = ChebConv(graph.num_features, 512, K=1)
         self.conv2 = ChebConv(512, 256, K=2)
         self.conv3 = ChebConv(256, 128, K=3)
-        self.fc = torch.nn.Linear(128, 6)
+        self.fc = torch.nn.Linear(128, 7)
         # self.conv1 = ChebConv(graph.num_features, 384, K=1)
         self.bn1 = BatchNorm(512)
         # self.conv2 = ChebConv(384, 192, K=2)

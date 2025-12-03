@@ -5,15 +5,20 @@ from torch_geometric.nn import GATConv
 from torch_geometric.nn import GATConv,  BatchNorm # noqa
 import torch.nn as nn
 from model.GNNs import *
-import datetime
+from torch_geometric.datasets import Planetoid
+
 def main(S_name,max_epoch,isenhanced,pe,pf):
   
-    import random
+    '''
     if isenhanced=='True':
         graph = torch.load('../graphs/'+ S_name + '/enhanced_graph_'+str(pe)+'_'+str(pf)+ '.pt')
     else:
         graph = torch.load('../graphs/' + S_name + '/raw_graph.pt')
     print(graph)
+    '''
+
+    dataset = Planetoid(root='./data/Cora', name='Cora')
+    graph = dataset[0]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = kanGCNNet(graph).to(device)
@@ -55,13 +60,9 @@ def main(S_name,max_epoch,isenhanced,pe,pf):
         lr_schedule.step()
     return best_vali_acc,best_test_acc
 
-
-import itertools
 if __name__ == '__main__':
     for S_name in ['S1','S2','S3','S4']:
         for isenhanced in [False]:
             best_vali_acc,best_test_acc = main(S_name=S_name,max_epoch=200,isenhanced = False,pe=0.1,pf=0.1)
-            np.save('../results/' + S_name + '/' + str(isenhanced) + '_best_vali_'+ '.npy', best_vali_acc)
-            np.save('../results/' + S_name + '/' + str(isenhanced) + '_best_test_'+ '.npy', best_test_acc)
-
-
+            np.save('./results/' + S_name + '/' + str(isenhanced) + '_best_vali_'+ '.npy', best_vali_acc)
+            np.save('./results/' + S_name + '/' + str(isenhanced) + '_best_test_'+ '.npy', best_test_acc)
