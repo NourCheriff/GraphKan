@@ -3,11 +3,11 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GATConv
-from torch_geometric.nn import GATConv,  BatchNorm # noqa
+from torch_geometric.nn import GATConv, BatchNorm  # noqa
 import torch.nn as nn
-from torch_geometric.nn import GINConv,  BatchNorm
+from torch_geometric.nn import GINConv, BatchNorm
 from torch.nn import Sequential as Seq, Linear as Lin, ReLU
-from torch_geometric.nn import GCNConv, SAGEConv,GraphConv,ChebConv
+from torch_geometric.nn import GCNConv, SAGEConv, GraphConv, ChebConv
 from torch_geometric.utils import *
 from torch_geometric.nn.conv import MessagePassing
 from typing import Optional
@@ -21,33 +21,48 @@ from torch_geometric.nn.inits import zeros
 from torch_geometric.typing import OptTensor
 from torch_geometric.utils import get_laplacian
 
+
 class kanChebConv(MessagePassing):
     def __init__(
         self,
         in_channels: int,
         out_channels: int,
         K: int,
-        normalization: Optional[str] = 'sym',
+        normalization: Optional[str] = "sym",
         bias: bool = True,
         **kwargs,
     ):
-        kwargs.setdefault('aggr', 'add')
+        kwargs.setdefault("aggr", "add")
         super().__init__(**kwargs)
 
         assert K > 0
-        assert normalization in [None, 'sym', 'rw'], 'Invalid normalization'
+        assert normalization in [None, "sym", "rw"], "Invalid normalization"
 
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.normalization = normalization
-        self.lins = torch.nn.ModuleList([
-            KANLinear(in_channels, out_channels, 5, 3, 0.1, 1.0, 1.0, base_activation=torch.nn.SiLU, grid_eps=0.02, grid_range=[-1,1]) for _ in range(K)
-        ])
+        self.lins = torch.nn.ModuleList(
+            [
+                KANLinear(
+                    in_channels,
+                    out_channels,
+                    5,
+                    3,
+                    0.1,
+                    1.0,
+                    1.0,
+                    base_activation=torch.nn.SiLU,
+                    grid_eps=0.02,
+                    grid_range=[-1, 1],
+                )
+                for _ in range(K)
+            ]
+        )
 
         if bias:
             self.bias = Parameter(Tensor(out_channels))
         else:
-            self.register_parameter('bias', None)
+            self.register_parameter("bias", None)
 
         self.reset_parameters()
 
@@ -56,7 +71,6 @@ class kanChebConv(MessagePassing):
         # for lin in self.lins:
         #     lin.reset_parameters()
         zeros(self.bias)
-
 
     def __norm__(
         self,
@@ -68,22 +82,22 @@ class kanChebConv(MessagePassing):
         dtype: Optional[int] = None,
         batch: OptTensor = None,
     ):
-        edge_index, edge_weight = get_laplacian(edge_index, edge_weight, normalization, dtype,
-                                                num_nodes)
+        edge_index, edge_weight = get_laplacian(
+            edge_index, edge_weight, normalization, dtype, num_nodes
+        )
         assert edge_weight is not None
 
         if lambda_max is None:
             lambda_max = 2.0 * edge_weight.max()
         elif not isinstance(lambda_max, Tensor):
-            lambda_max = torch.tensor(lambda_max, dtype=dtype,
-                                      device=edge_index.device)
+            lambda_max = torch.tensor(lambda_max, dtype=dtype, device=edge_index.device)
         assert lambda_max is not None
 
         if batch is not None and lambda_max.numel() > 1:
             lambda_max = lambda_max[batch[edge_index[0]]]
 
         edge_weight = (2.0 * edge_weight) / lambda_max
-        edge_weight.masked_fill_(edge_weight == float('inf'), 0)
+        edge_weight.masked_fill_(edge_weight == float("inf"), 0)
 
         loop_mask = edge_index[0] == edge_index[1]
         edge_weight[loop_mask] -= 1
@@ -120,7 +134,7 @@ class kanChebConv(MessagePassing):
 
         for lin in self.lins[2:]:
             Tx_2 = self.propagate(edge_index, x=Tx_1, norm=norm)
-            Tx_2 = 2. * Tx_2 - Tx_0
+            Tx_2 = 2.0 * Tx_2 - Tx_0
             out = out + lin.forward(Tx_2)
             Tx_0, Tx_1 = Tx_1, Tx_2
 
@@ -132,24 +146,27 @@ class kanChebConv(MessagePassing):
         return norm.view(-1, 1) * x_j
 
     def __repr__(self) -> str:
-        return (f'{self.__class__.__name__}({self.in_channels}, '
-                f'{self.out_channels}, K={len(self.lins)}, '
-                f'normalization={self.normalization})')
+        return (
+            f"{self.__class__.__name__}({self.in_channels}, "
+            f"{self.out_channels}, K={len(self.lins)}, "
+            f"normalization={self.normalization})"
+        )
+
 
 class KANLinear(torch.nn.Module):
     def __init__(
-            self,
-            in_features,
-            out_features,
-            grid_size=5,
-            spline_order=3,
-            scale_noise=0.1,
-            scale_base=1.0,
-            scale_spline=1.0,
-            enable_standalone_scale_spline=True,
-            base_activation=torch.nn.SiLU,
-            grid_eps=0.02,
-            grid_range=[-1, 1],
+        self,
+        in_features,
+        out_features,
+        grid_size=5,
+        spline_order=3,
+        scale_noise=0.1,
+        scale_base=1.0,
+        scale_spline=1.0,
+        enable_standalone_scale_spline=True,
+        base_activation=torch.nn.SiLU,
+        grid_eps=0.02,
+        grid_range=[-1, 1],
     ):
         super(KANLinear, self).__init__()
         self.in_features = in_features
@@ -160,8 +177,8 @@ class KANLinear(torch.nn.Module):
         h = (grid_range[1] - grid_range[0]) / grid_size
         grid = (
             (
-                    torch.arange(-spline_order, grid_size + spline_order + 1) * h
-                    + grid_range[0]
+                torch.arange(-spline_order, grid_size + spline_order + 1) * h
+                + grid_range[0]
             )
             .expand(in_features, -1)
             .contiguous()
@@ -190,23 +207,25 @@ class KANLinear(torch.nn.Module):
         torch.nn.init.kaiming_uniform_(self.base_weight, a=math.sqrt(5) * self.scale_base)
         with torch.no_grad():
             noise = (
-                    (
-                            torch.rand(self.grid_size + 1, self.in_features, self.out_features)
-                            - 1 / 2
-                    )
-                    * self.scale_noise
-                    / self.grid_size
+                (
+                    torch.rand(self.grid_size + 1, self.in_features, self.out_features)
+                    - 1 / 2
+                )
+                * self.scale_noise
+                / self.grid_size
             )
             self.spline_weight.data.copy_(
                 (self.scale_spline if not self.enable_standalone_scale_spline else 1.0)
                 * self.curve2coeff(
-                    self.grid.T[self.spline_order: -self.spline_order],
+                    self.grid.T[self.spline_order : -self.spline_order],
                     noise,
                 )
             )
             if self.enable_standalone_scale_spline:
                 # torch.nn.init.constant_(self.spline_scaler, self.scale_spline)
-                torch.nn.init.kaiming_uniform_(self.spline_scaler, a=math.sqrt(5) * self.scale_spline)
+                torch.nn.init.kaiming_uniform_(
+                    self.spline_scaler, a=math.sqrt(5) * self.scale_spline
+                )
 
     def b_splines(self, x: torch.Tensor):
         """
@@ -220,21 +239,19 @@ class KANLinear(torch.nn.Module):
         """
         assert x.dim() == 2 and x.size(1) == self.in_features
 
-        grid: torch.Tensor = (
-            self.grid
-        )  # (in_features, grid_size + 2 * spline_order + 1)
+        grid: torch.Tensor = self.grid  # (in_features, grid_size + 2 * spline_order + 1)
         x = x.unsqueeze(-1)
         bases = ((x >= grid[:, :-1]) & (x < grid[:, 1:])).to(x.dtype)
         for k in range(1, self.spline_order + 1):
             bases = (
-                            (x - grid[:, : -(k + 1)])
-                            / (grid[:, k:-1] - grid[:, : -(k + 1)])
-                            * bases[:, :, :-1]
-                    ) + (
-                            (grid[:, k + 1:] - x)
-                            / (grid[:, k + 1:] - grid[:, 1:(-k)])
-                            * bases[:, :, 1:]
-                    )
+                (x - grid[:, : -(k + 1)])
+                / (grid[:, k:-1] - grid[:, : -(k + 1)])
+                * bases[:, :, :-1]
+            ) + (
+                (grid[:, k + 1 :] - x)
+                / (grid[:, k + 1 :] - grid[:, 1:(-k)])
+                * bases[:, :, 1:]
+            )
 
         assert bases.size() == (
             x.size(0),
@@ -322,12 +339,12 @@ class KANLinear(torch.nn.Module):
 
         uniform_step = (x_sorted[-1] - x_sorted[0] + 2 * margin) / self.grid_size
         grid_uniform = (
-                torch.arange(
-                    self.grid_size + 1, dtype=torch.float32, device=x.device
-                ).unsqueeze(1)
-                * uniform_step
-                + x_sorted[0]
-                - margin
+            torch.arange(
+                self.grid_size + 1, dtype=torch.float32, device=x.device
+            ).unsqueeze(1)
+            * uniform_step
+            + x_sorted[0]
+            - margin
         )
 
         grid = self.grid_eps * grid_uniform + (1 - self.grid_eps) * grid_adaptive
@@ -365,9 +382,10 @@ class KANLinear(torch.nn.Module):
         p = l1_fake / regularization_loss_activation
         regularization_loss_entropy = -torch.sum(p * p.log())
         return (
-                regularize_activation * regularization_loss_activation
-                + regularize_entropy * regularization_loss_entropy
+            regularize_activation * regularization_loss_activation
+            + regularize_entropy * regularization_loss_entropy
         )
+
 
 class kanGCNNet(torch.nn.Module):
     def __init__(self, graph):
@@ -380,8 +398,12 @@ class kanGCNNet(torch.nn.Module):
         self.ln3 = nn.LayerNorm(128)
         self.fc = KANLinear(128, 7)
 
-    def forward(self,graph):
-        x, edge_index, edge_weight = graph.x, graph.edge_index, graph.edge_attr  # the Forward path of model
+    def forward(self, graph):
+        x, edge_index, edge_weight = (
+            graph.x,
+            graph.edge_index,
+            graph.edge_attr,
+        )  # the Forward path of model
         x = F.relu(self.ln1(self.conv1(x, edge_index, edge_weight)))
         x = F.relu(self.ln2(self.conv2(x, edge_index, edge_weight)))
         x = self.ln3(self.conv3(x, edge_index, edge_weight))
@@ -390,7 +412,7 @@ class kanGCNNet(torch.nn.Module):
 
 
 class GCNNet768(torch.nn.Module):
-    def __init__(self,graph):
+    def __init__(self, graph):
         super(GCNNet768, self).__init__()
         self.conv1 = ChebConv(graph.num_features, 512, K=1)
         self.conv2 = ChebConv(512, 256, K=2)
@@ -404,8 +426,12 @@ class GCNNet768(torch.nn.Module):
         self.bn3 = BatchNorm(128)
         # self.fc = torch.nn.Linear(96, 6)
 
-    def forward(self,graph):
-        x, edge_index, edge_weight = graph.x, graph.edge_index, graph.edge_attr  # the Forward path of model
+    def forward(self, graph):
+        x, edge_index, edge_weight = (
+            graph.x,
+            graph.edge_index,
+            graph.edge_attr,
+        )  # the Forward path of model
         x = F.relu(self.bn1(self.conv1(x, edge_index, edge_weight)))
         x = F.relu(self.bn2(self.conv2(x, edge_index, edge_weight)))
         x = self.bn3(self.conv3(x, edge_index, edge_weight))
